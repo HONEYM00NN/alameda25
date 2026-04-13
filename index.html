@@ -155,6 +155,8 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--w);min-heigh
 .tbl th{padding:11px 14px;text-align:left;font-size:.58rem;letter-spacing:2.5px;text-transform:uppercase;color:var(--s3);font-family:monospace;font-weight:400}
 .tbl td{padding:11px 14px;border-top:1px solid var(--b);color:var(--w3);vertical-align:middle}
 .tbl tr:hover td{background:rgba(255,255,255,.02)}
+.tbl tr.row-sel td{background:rgba(212,168,75,.07)!important}
+.tbl tr.row-clickable{cursor:pointer}
 .td-p{color:var(--w)!important;font-weight:600}
 .td-m{font-family:monospace;font-size:.75rem}
 .td-g{color:var(--gr)!important;font-family:monospace;font-weight:600}
@@ -1426,7 +1428,7 @@ function renderEst(){
     const skuHtml=p.sku?'<br><span style="font-size:.62rem;color:var(--s3);font-family:monospace">'+esc(p.sku)+'</span>':'';
     const tamCor=[p.tam,p.cor].filter(Boolean).map(esc).join(' · ')||'—';
     const atacadoStr=p.atacado>0?fmt(p.atacado)+(p.minAta?' (≥'+p.minAta+')':''):'—';
-    return '<tr>'+
+    return '<tr class="row-clickable" onclick="bulkRowClick(event,\'est\',this)">'+
       '<td style="width:32px"><input type="checkbox" class="cb-sel cb-row-est" data-id="'+p.id+'" data-grp="est" onchange="bulkUpdate(this.dataset.grp)"></td>'+
       '<td><span class="td-p">'+esc(p.nome)+'</span>'+skuHtml+'</td>'+
       '<td><span class="bdg bdg-w">'+esc(p.cat)+'</span></td>'+
@@ -1806,7 +1808,7 @@ function renderVendas(){
     const sepV=mvChanged&&prevMV?'<tr><td colspan="9" style="padding:4px 14px;background:linear-gradient(90deg,rgba(212,168,75,.1),transparent);border-top:1px solid rgba(212,168,75,.15)"><span style="font-size:.56rem;letter-spacing:3px;text-transform:uppercase;color:var(--gold);font-family:monospace">\u25C8 '+(vm?mNomesV[parseInt(vm)-1]+' '+vy:'')+'</span></td></tr>':'';
     const itens=v.carrinho?v.carrinho.map(it=>esc(it.prodNome||it.descricao||'—')).join(', '):'—';
     const fs=v.fiado&&!v.fiadoPago?'<span class="bdg bdg-a" style="margin-left:4px">Aberto</span>':v.fiadoPago&&v.fiado?'<span class="bdg bdg-g" style="margin-left:4px">Pago</span>':'';
-    return sepV+'<tr>'+
+    return sepV+'<tr class="row-clickable" onclick="bulkRowClick(event,\'v\',this)">'+
       '<td style="width:32px"><input type="checkbox" class="cb-sel cb-row-v" data-id="'+v.id+'" data-grp="v" onchange="bulkUpdate(this.dataset.grp)"></td>'+
       '<td><span class="td-p" style="font-size:.75rem">'+(itens.length>50?itens.slice(0,50)+'…':itens)+'</span>'+(v.obs?'<br><span style="font-size:.62rem;color:var(--s3)">'+esc(v.obs)+'</span>':'')+'</td>'+
       '<td><span class="bdg '+(tc[v.tipo]||'bdg-w')+'">'+(tl[v.tipo]||esc(v.tipo))+'</span></td>'+
@@ -1877,7 +1879,7 @@ function renderGastos(){
     const separator=mesChanged&&prevMes?'<tr><td colspan="8" style="padding:4px 14px 2px;background:linear-gradient(90deg,rgba(212,168,75,.12),transparent);border-top:1px solid rgba(212,168,75,.2)"><span style="font-size:.56rem;letter-spacing:3px;text-transform:uppercase;color:var(--gold);font-family:monospace">\u25C8 '+mLabel+'</span></td></tr>':'';
     const tipoColor=g.tipo==='investimento'?'var(--gr)':g.tipo==='fixo'?'var(--bl)':'var(--am)';
     const tipoLabel=g.tipo==='investimento'?'Investimento':g.tipo==='fixo'?'Fixo':'Variável';
-    return separator+'<tr>'+
+    return separator+'<tr class="row-clickable" onclick="bulkRowClick(event,\'g\',this)">'+
       '<td style="width:32px"><input type="checkbox" class="cb-sel cb-row-g" data-id="'+g.id+'" data-grp="g" onchange="bulkUpdate(this.dataset.grp)"></td>'+
       '<td class="td-p">'+esc(g.desc)+'</td>'+
       '<td><span class="bdg bdg-w">'+esc(g.cat)+'</span></td>'+
@@ -2023,7 +2025,7 @@ function renderCli(){
     const vs=S.vendas.filter(v=>v.clienteId===cli.id&&(!v.fiado||v.fiadoPago));
     const tot=vs.reduce((s,v)=>s+v.total,0);
     const cid=cli.id;
-    return `<tr>
+    return `<tr class="row-clickable" onclick="bulkRowClick(event,'cli',this)">
       <td style="width:32px"><input type="checkbox" class="cb-sel cb-row-cli" data-id="${cid}" data-grp="cli" onchange="bulkUpdate(this.dataset.grp)"></td>
       <td class="td-p">${esc(cli.nome)}</td>
       <td><span class="bdg ${clc}">${cl}</span></td>
@@ -2203,7 +2205,7 @@ function renderRepo(){
     const total=r.totalInvest||(qtd*custo)||0;
     const estoqueApos=r.estoqueApos!=null?r.estoqueApos+' un.':'—';
     return sep+
-      '<tr>'+
+      '<tr class="row-clickable" onclick="bulkRowClick(event,\'repo\',this)">'+
       '<td style="width:32px"><input type="checkbox" class="cb-sel cb-row-repo" data-id="'+r.id+'" data-grp="repo" onchange="bulkUpdate(this.dataset.grp)"></td>'+
       '<td class="td-p">'+(r.prodNome||'—')+'</td>'+
       '<td class="td-g">+'+qtd+'</td>'+
@@ -3812,6 +3814,14 @@ function mkBulkBar(key, onDel){
   </div>`;
 }
 
+function bulkRowClick(e, key, tr){
+  // Ignora cliques em botões, links, inputs e selects
+  if(['BUTTON','A','INPUT','SELECT','LABEL'].includes(e.target.tagName)) return;
+  const cb=tr.querySelector(`.cb-row-${key}`);
+  if(!cb) return;
+  cb.checked=!cb.checked;
+  bulkUpdate(key);
+}
 function bulkToggleAll(key, checked){
   document.querySelectorAll(`.cb-row-${key}`).forEach(cb=>{cb.checked=checked;});
   bulkUpdate(key);
@@ -3825,9 +3835,18 @@ function bulkUpdate(key){
   if(cnt) cnt.textContent=sel.length+' selecionado'+(sel.length!==1?'s':'');
   const all=document.getElementById('cb-all-'+key);
   if(all) all.checked=sel.length===cbs.length&&cbs.length>0;
+  // Destaca visualmente as linhas selecionadas
+  cbs.forEach(cb=>{
+    const row=cb.closest('tr');
+    if(row){ row.classList.toggle('row-sel',cb.checked); row.classList.add('row-clickable'); }
+  });
 }
 function bulkClear(key){
-  document.querySelectorAll(`.cb-row-${key}`).forEach(cb=>cb.checked=false);
+  document.querySelectorAll(`.cb-row-${key}`).forEach(cb=>{
+    cb.checked=false;
+    const row=cb.closest('tr');
+    if(row) row.classList.remove('row-sel');
+  });
   const bar=document.getElementById('bulk-bar-'+key);
   if(bar) bar.classList.remove('show');
   const all=document.getElementById('cb-all-'+key);
