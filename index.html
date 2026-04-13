@@ -347,6 +347,13 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--w);min-heigh
 .pag-btn:hover:not(:disabled){border-color:var(--gold);color:var(--gold)}
 .pag-btn.active{background:rgba(212,168,75,.15);border-color:var(--gold);color:var(--gold);font-weight:700}
 .pag-btn:disabled{opacity:.3;cursor:default}
+/* ── Col config ── */
+.col-cfg-wrap{position:relative;display:inline-block}
+.col-cfg-drop{display:none;position:absolute;right:0;top:calc(100% + 4px);background:var(--bg3);border:1px solid var(--b2);border-radius:var(--rs);padding:10px 14px;z-index:300;min-width:160px;box-shadow:var(--sh)}
+.col-cfg-drop.open{display:block}
+.col-cfg-drop label{display:flex;align-items:center;gap:8px;font-size:.72rem;color:var(--w2);padding:4px 0;cursor:pointer;white-space:nowrap}
+.col-cfg-drop label:hover{color:var(--gold2)}
+.col-cfg-drop input[type=checkbox]{accent-color:var(--gold);width:13px;height:13px}
 /* ── Bulk select ── */
 .bulk-bar{display:none;align-items:center;gap:10px;padding:8px 12px;background:rgba(212,168,75,.08);border:1px solid rgba(212,168,75,.2);border-radius:8px;margin-bottom:10px}
 .bulk-bar.show{display:flex}
@@ -1150,7 +1157,7 @@ window.addEventListener('offline', ()=>{
 
 // ═══ DEFAULT STATE ═══
 function defState(){return{
-  logo:null,meta:0,perPage:20,
+  logo:null,meta:0,perPage:20,colConfig:{},
   proLabore:{titular:0,socia:0},
   cats:{
     produto:['Vestidos','Blusas','Calças','Saias','Acessórios','Calçados','Macacões','Casacos','Conjuntos','Outros'],
@@ -1160,6 +1167,92 @@ function defState(){return{
 };}
 let S=defState(),curUser='',curPage='dashboard',cartItems=[];
 let trocaItens={dev:[{prodId:'',qtd:1}],env:[{prodId:'',qtd:1}]};
+
+// ═══ COLUNAS CONFIGURÁVEIS ═══
+// Definição: {key, label, idx (nth-child), tabela, default:true=visível}
+const COL_DEFS = {
+  est:[
+    {key:'cat',   label:'Categoria',  idx:3,  def:true},
+    {key:'tamcor',label:'Tam./Cor',   idx:4,  def:true},
+    {key:'varejo',label:'Varejo',     idx:5,  def:true},
+    {key:'atac',  label:'Atacado',    idx:6,  def:true},
+    {key:'custo', label:'Custo',      idx:7,  def:true},
+    {key:'mg',    label:'Margem',     idx:8,  def:true},
+    {key:'status',label:'Status',     idx:10, def:true},
+  ],
+  v:[
+    {key:'tipo',  label:'Tipo',       idx:3,  def:true},
+    {key:'canal', label:'Canal',      idx:4,  def:true},
+    {key:'pag',   label:'Pagamento',  idx:6,  def:true},
+    {key:'cli',   label:'Cliente',    idx:7,  def:true},
+  ],
+  g:[
+    {key:'cat',   label:'Categoria',  idx:3,  def:true},
+    {key:'tipo',  label:'Tipo',       idx:4,  def:true},
+    {key:'obs',   label:'Obs.',       idx:7,  def:true},
+  ],
+  cli:[
+    {key:'tipo',  label:'Tipo',       idx:3,  def:false},
+    {key:'classe',label:'Classe',     idx:4,  def:true},
+    {key:'fiad',  label:'Fiado',      idx:7,  def:true},
+    {key:'ult',   label:'Últ. Pedido',idx:8,  def:false},
+  ],
+};
+
+function _getColHidden(tbl){
+  return (S.colConfig&&S.colConfig[tbl])||[];
+}
+
+function applyColConfig(){
+  let styleEl=document.getElementById('col-cfg-style');
+  if(!styleEl){styleEl=document.createElement('style');styleEl.id='col-cfg-style';document.head.appendChild(styleEl);}
+  let css='';
+  Object.entries(COL_DEFS).forEach(([tbl,cols])=>{
+    const hidden=_getColHidden(tbl);
+    cols.forEach(c=>{
+      const isHidden=hidden.includes(c.key)||(hidden.length===0&&!c.def);
+      if(isHidden){
+        css+=`#${tbl}-tbl-wrap thead th:nth-child(${c.idx}),`+
+             `#${tbl}-body tr td:nth-child(${c.idx}){display:none!important}`;
+      }
+    });
+  });
+  styleEl.textContent=css;
+}
+
+function toggleColDrop(tbl){
+  // Fecha todos os outros
+  document.querySelectorAll('.col-cfg-drop').forEach(d=>{if(d.id!=='col-drop-'+tbl)d.classList.remove('open');});
+  const drop=document.getElementById('col-drop-'+tbl);
+  if(drop) drop.classList.toggle('open');
+}
+
+function toggleCol(tbl,key,checked){
+  if(!S.colConfig) S.colConfig={};
+  if(!S.colConfig[tbl]) S.colConfig[tbl]=COL_DEFS[tbl].filter(c=>!c.def).map(c=>c.key);
+  if(checked){ S.colConfig[tbl]=S.colConfig[tbl].filter(k=>k!==key); }
+  else { if(!S.colConfig[tbl].includes(key)) S.colConfig[tbl].push(key); }
+  applyColConfig();
+  saveSt();
+}
+
+function mkColBtn(tbl){
+  const hidden=_getColHidden(tbl);
+  const opts=COL_DEFS[tbl].map(c=>{
+    const isHidden=hidden.includes(c.key)||(hidden.length===0&&!c.def);
+    return `<label><input type="checkbox" ${isHidden?'':'checked'} onchange="toggleCol('${tbl}','${c.key}',this.checked)">${c.label}</label>`;
+  }).join('');
+  return `<div class="col-cfg-wrap">
+    <button class="btn btn-g btn-sm" onclick="toggleColDrop('${tbl}')" title="Configurar colunas" style="font-size:.65rem;padding:5px 10px">⚙ Colunas</button>
+    <div class="col-cfg-drop" id="col-drop-${tbl}">${opts}</div>
+  </div>`;
+}
+
+// Fecha dropdowns ao clicar fora
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.col-cfg-wrap'))
+    document.querySelectorAll('.col-cfg-drop.open').forEach(d=>d.classList.remove('open'));
+});
 
 // ═══ HELPERS ═══
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
@@ -1209,7 +1302,7 @@ function _loginSuccess(u){
   document.getElementById('login').style.display='none';
   document.getElementById('app').classList.add('show');
   document.getElementById('sb-role').textContent=S.nomes?.[u]||(u==='admin'?'Titular':'Sócia');
-  applyLogo();updateBadges();renderPage('dashboard');
+  applyLogo();updateBadges();applyColConfig();renderPage('dashboard');
 }
 function _loginError(){
   const e=document.getElementById('l-err');e.style.display='block';
@@ -3384,6 +3477,27 @@ function renderPage(page){
   else if(page==='fiados')renderFiados();
   else if(page==='historico')renderHistorico();
   else if(page==='gastos-fixos')renderGF();
+  // Injeta botão de colunas e aplica config após render
+  ['est','v','g','cli'].forEach(tbl=>{
+    const wrap=document.getElementById(tbl+'-tbl-wrap');
+    if(!wrap) return;
+    if(!wrap.querySelector('.col-cfg-wrap')){
+      const btn=document.createElement('div');
+      btn.innerHTML=mkColBtn(tbl);
+      btn.style.cssText='position:absolute;top:-36px;right:0';
+      wrap.style.position='relative';
+      wrap.appendChild(btn.firstElementChild);
+    } else {
+      // Atualiza checkboxes do dropdown se já existe
+      const drop=document.getElementById('col-drop-'+tbl);
+      if(drop) drop.innerHTML=COL_DEFS[tbl].map(c=>{
+        const hidden=_getColHidden(tbl);
+        const isHidden=hidden.includes(c.key)||(hidden.length===0&&!c.def);
+        return `<label><input type="checkbox" ${isHidden?'':'checked'} onchange="toggleCol('${tbl}','${c.key}',this.checked)">${c.label}</label>`;
+      }).join('');
+    }
+  });
+  applyColConfig();
 }
 
 // ═══ INIT ═══
