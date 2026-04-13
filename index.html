@@ -326,7 +326,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--w);min-heigh
   .goal-pct{font-size:1.2rem!important}
   .card-title{font-size:.6rem!important}
   #tb-main{font-size:.6rem;padding:6px 8px}
-  #tb-sec{display:none}
+  #tb-sec{font-size:.55rem;padding:5px 7px;letter-spacing:.5px}
   .topbar{padding:8px 12px}
 }
 .mob-back{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99}
@@ -393,6 +393,9 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--w);min-heigh
     <div class="l-fg"><label class="l-lbl">Senha</label><input type="password" class="l-inp" id="l-pass" placeholder="••••••••" autocomplete="current-password"></div>
     <button class="l-btn" onclick="doLogin()">Entrar</button>
     <div class="l-err" id="l-err">Usuário ou senha incorretos</div>
+    <div style="text-align:center;margin-top:12px">
+      <button onclick="doForgotPass()" style="background:none;border:none;color:var(--gold3);font-size:.62rem;font-family:monospace;cursor:pointer;letter-spacing:1px;text-decoration:underline">Esqueci minha senha</button>
+    </div>
   </div>
 </div>
 
@@ -1276,6 +1279,28 @@ function fmtMinus(v){return`<span style="color:var(--re);font-family:monospace;f
 
 // ═══ LOGIN ═══
 document.getElementById('l-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+async function doForgotPass(){
+  const u=document.getElementById('l-user').value.trim().toLowerCase();
+  const email=USER_EMAILS[u];
+  if(!email){
+    const errEl=document.getElementById('l-err');
+    errEl.textContent='Digite seu usuário (admin ou socia) antes';
+    errEl.style.display='block';
+    setTimeout(()=>{errEl.style.display='none';errEl.textContent='Usuário ou senha incorretos';},3000);
+    return;
+  }
+  if(!auth){toast('Serviço indisponível offline','var(--am)');return;}
+  try{
+    await auth.sendPasswordResetEmail(email);
+    const errEl=document.getElementById('l-err');
+    errEl.textContent='Email de recuperação enviado para '+email;
+    errEl.style.color='var(--gr)';
+    errEl.style.display='block';
+    setTimeout(()=>{errEl.style.display='none';errEl.style.color='';},5000);
+  }catch(e){
+    toast('Erro ao enviar email: '+e.message,'var(--re)');
+  }
+}
 async function doLogin(){
   const u=document.getElementById('l-user').value.trim().toLowerCase();
   const p=document.getElementById('l-pass').value;
