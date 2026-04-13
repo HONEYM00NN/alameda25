@@ -996,37 +996,61 @@ const FB_DOC = () => db?.collection('a25').doc('estado');
 
 // ── Real-time listener: sincroniza entre dispositivos ──
 let fbUnsubscribe = null;
+let _lastSavedTs = null; // timestamp do último save feito POR ESTE dispositivo
+
 function fbListen(){
   if(!fbReady) return;
   if(fbUnsubscribe) fbUnsubscribe();
   fbUnsubscribe = FB_DOC().onSnapshot(snap=>{
     if(!snap.exists) return;
-    const remote = JSON.parse(snap.data()?.json||'null');
+    let remote;
+    try{ remote = JSON.parse(snap.data()?.json||'null'); }
+    catch(e){ console.warn('Firebase: JSON inválido no documento remoto'); return; }
     if(!remote) return;
-    // Só aplica se mudou remotamente (outro dispositivo salvou)
+
+    const remoteTs = snap.data()?.ts||'';
+
+    // Ignora se este dispositivo foi o último a salvar (evita loop)
+    if(_lastSavedTs && remoteTs === _lastSavedTs) return;
+
+    // Só aplica se o remoto é mais recente que o nosso último save local
     const localStr = JSON.stringify(S);
     const remoteStr = JSON.stringify(remote);
-    if(localStr !== remoteStr){
-      S = {...defState(),...remote,
-        cats:{
-          produto:[...(remote.cats?.produto||defState().cats.produto)],
-          gasto:[...(remote.cats?.gasto||defState().cats.gasto)]
-        },
-        log: remote.log||[]
-      };
-      updateBadges();
-      renderPage(curPage);
-      showSyncIndicator();
-    }
-  }, err=>console.warn('Firebase listener error:', err));
+    if(localStr === remoteStr) return;
+
+    S = {...defState(),...remote,
+      cats:{
+        produto:[...(remote.cats?.produto||defState().cats.produto)],
+        gasto:[...(remote.cats?.gasto||defState().cats.gasto)]
+      },
+      log: remote.log||[]
+    };
+    _invalidateIdx();
+    _dashCache.key=null;
+    updateBadges();
+    renderPage(curPage);
+    showSyncIndicator('sync');
+  }, err=>{
+    console.warn('Firebase listener error:', err);
+    showSyncIndicator('offline');
+  });
 }
 
-function showSyncIndicator(){
+function showSyncIndicator(tipo='sync'){
   const dot = document.querySelector('.sb-dot');
   if(!dot) return;
-  dot.style.background='var(--gold)';
-  dot.title='Sincronizado com a nuvem';
-  setTimeout(()=>{ dot.style.background=''; dot.title=''; }, 2000);
+  if(tipo==='sync'){
+    dot.style.background='var(--gold)';
+    dot.title='Sincronizado com a nuvem';
+    setTimeout(()=>{ dot.style.background=''; dot.title=''; }, 2000);
+  } else if(tipo==='offline'){
+    dot.style.background='var(--re)';
+    dot.title='Sem conexão com a nuvem — salvando localmente';
+  } else if(tipo==='online'){
+    dot.style.background='var(--gr)';
+    dot.title='Conexão restaurada';
+    setTimeout(()=>{ dot.style.background=''; dot.title=''; }, 3000);
+  }
 }
 
 // Índices para lookups O(1) — invalidados a cada save
@@ -1049,9 +1073,18 @@ async function _doSaveSt(){
   const str = JSON.stringify(S);
   localStorage.setItem(SKEY, str);
   if(fbReady){
+    const ts = new Date().toISOString();
     try{
-      await FB_DOC().set({ json: str, ts: new Date().toISOString() });
-    }catch(e){ console.warn('Firebase save error:', e); }
+      await FB_DOC().set({ json: str, ts });
+      _lastSavedTs = ts;
+      // Restaura indicador se estava offline
+      const dot = document.querySelector('.sb-dot');
+      if(dot && dot.style.background==='var(--re)') showSyncIndicator('online');
+    }catch(e){
+      console.warn('Firebase save error:', e);
+      showSyncIndicator('offline');
+      toast('⚠ Salvo localmente — sem conexão com a nuvem','var(--am)');
+    }
   }
 }
 
@@ -1072,6 +1105,19 @@ async function loadSt(){
   const lc = localStorage.getItem(SKEY);
   return lc ? JSON.parse(lc) : null;
 }
+
+// ── Detecta reconexão com internet e re-sincroniza ──
+window.addEventListener('online', ()=>{
+  if(fbReady && curUser){
+    saveSt(); // Sobe dados locais que possam ter ficado offline
+    showSyncIndicator('online');
+    toast('✓ Conexão restaurada — sincronizando','var(--gr)');
+  }
+});
+window.addEventListener('offline', ()=>{
+  showSyncIndicator('offline');
+  toast('⚠ Sem internet — continuando offline','var(--am)');
+});
 
 // ═══ DEFAULT STATE ═══
 function defState(){return{
