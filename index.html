@@ -1501,16 +1501,66 @@ function remTrocaItem(side,i){
   renderTrocaLists();
 }
 
+function _mkProdSelectHtml(i, it){
+  const prodOpts=S.produtos.map(p=>'<option value="'+p.id+'"'+(it.prodId==p.id?' selected':'')+'>'+
+    esc(p.nome)+(p.tam?' ('+esc(p.tam)+')':'')+(p.qtd===0?' ⚠ sem estoque':p.qtd<=p.alerta?' ⚠ baixo':'')+
+    ' — '+fmt(it.canal==='atacado'&&p.atacado>0?p.atacado:p.varejo||p.custo)+
+  '</option>').join('');
+  const nomeSel=it.prodId?esc(S.produtos.find(x=>x.id==it.prodId)?.nome||''):'';
+  return '<div style="position:relative">'+
+    '<label>Produto</label>'+
+    '<input type="text" class="cart-prod-search" data-idx="'+i+'" placeholder="Buscar produto..." '+
+      'value="'+nomeSel+'" autocomplete="off" '+
+      'oninput="filterCartProd('+i+',this)" '+
+      'onfocus="showCartProdDrop('+i+')" '+
+      'onblur="hideCartProdDrop('+i+')" '+
+      'style="width:100%;margin-bottom:3px">'+
+    '<select id="cart-prod-sel-'+i+'" size="5" '+
+      'style="display:none;position:absolute;top:100%;left:0;right:0;z-index:200;max-height:150px;background:var(--bg3);border:1px solid var(--gold3);border-radius:var(--rs);font-size:.78rem" '+
+      'onmousedown="onCartProdDrop('+i+',this)">'+
+      '<option value="">— Selecionar —</option>'+prodOpts+
+    '</select>'+
+  '</div>';
+}
+
+function filterCartProd(i, inp){
+  const q=inp.value.toLowerCase();
+  const sel=document.getElementById('cart-prod-sel-'+i);
+  if(!sel)return;
+  sel.style.display='block';
+  Array.from(sel.options).forEach(opt=>{
+    opt.style.display=(!q||opt.text.toLowerCase().includes(q))?'':'none';
+  });
+}
+
+function showCartProdDrop(i){
+  const sel=document.getElementById('cart-prod-sel-'+i);
+  if(sel) sel.style.display='block';
+}
+
+function hideCartProdDrop(i){
+  // Delay para o mousedown do select ter tempo de disparar antes do blur
+  setTimeout(()=>{
+    const sel=document.getElementById('cart-prod-sel-'+i);
+    if(sel) sel.style.display='none';
+  },180);
+}
+
+function onCartProdDrop(i, sel){
+  const pid=parseInt(sel.value)||0;
+  if(!pid)return;
+  cartItems[i].prodId=pid;
+  const p=S.produtos.find(x=>x.id===pid);
+  if(p) cartItems[i].preco=cartItems[i].canal==='atacado'&&p.atacado>0?p.atacado:p.varejo||p.custo;
+  renderCart();
+}
+
 function renderCart(){
   const ci=document.getElementById('v-cart-items');
   if(!ci)return;
   ci.innerHTML=cartItems.map((it,i)=>{
-    const prodOpts=S.produtos.map(p=>'<option value="'+p.id+'"'+(it.prodId==p.id?' selected':'')+'>'+p.nome+(p.tam?' ('+p.tam+')':'')+(p.qtd===0?' ⚠ sem estoque':p.qtd<=p.alerta?' ⚠ baixo':'')+' — '+fmt(it.canal==='atacado'&&p.atacado>0?p.atacado:p.varejo||p.custo)+'</option>').join('');
     return '<div class="cart-item">'+
-      '<div><label>Produto</label>'+
-      '<select onchange="onCartProd('+i+',this)">'+
-        '<option value="">— Selecionar —</option>'+prodOpts+
-      '</select></div>'+
+      _mkProdSelectHtml(i,it)+
       '<div><label>Canal</label>'+
         '<select onchange="onCartCanal('+i+',this)">'+
           '<option value="varejo"'+(it.canal==='varejo'?' selected':'')+'>Varejo</option>'+
@@ -1523,14 +1573,6 @@ function renderCart(){
     '</div>';
   }).join('');
   calcTot();
-}
-
-function onCartProd(i,sel){
-  const pid=parseInt(sel.value)||0;
-  cartItems[i].prodId=pid;
-  const p=S.produtos.find(x=>x.id===pid);
-  if(p) cartItems[i].preco=cartItems[i].canal==='atacado'&&p.atacado>0?p.atacado:p.varejo||p.custo;
-  renderCart();
 }
 
 function onCartCanal(i,sel){
