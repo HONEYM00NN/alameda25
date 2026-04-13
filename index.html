@@ -857,7 +857,21 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--w);min-heigh
     <div class="fg"><label>Tipo de Movimentação</label><select id="v-tipo" onchange="onTipoV()"><option value="venda">Venda Normal</option><option value="avulsa">Venda Avulsa (sem estoque)</option><option value="atacado">Venda Atacado</option><option value="troca">Troca</option><option value="devolucao">Devolução</option><option value="fiado">Venda a Prazo</option></select></div>
     <div id="v-cart-sec"><div class="sec-title" style="font-size:.6rem;margin-bottom:7px">Itens do Carrinho</div><div id="v-cart-items"></div><button class="btn btn-g btn-sm" onclick="addCartItem()" id="v-add-btn">+ Item</button></div>
     <div id="v-avulsa-sec" class="hidden"><div class="form-row"><div class="fg"><label>Descrição do Item</label><input type="text" id="v-av-desc" placeholder="Ex: Acessório importado"></div><div class="fg"><label>Valor (R$)</label><input type="number" id="v-av-val" step="0.01" placeholder="0,00" oninput="calcTot()"></div></div></div>
-    <div id="v-troca-sec" class="hidden"><div class="form-row"><div class="fg"><label>Produto Devolvido (cliente traz)</label><select id="v-troca-dev"></select></div><div class="fg"><label>Produto Enviado (cliente leva)</label><select id="v-troca-env"></select></div></div><div class="fg"><label>Diferença de Valor (R$) — positivo: cliente paga; negativo: loja devolve</label><input type="number" id="v-troca-diff" step="0.01" value="0" oninput="calcTot()"></div></div>
+    <div id="v-troca-sec" class="hidden">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:10px">
+        <div>
+          <div style="font-size:.6rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--re);font-family:monospace;margin-bottom:6px">↩ Cliente Devolve</div>
+          <div id="v-troca-dev-list"></div>
+          <button class="btn btn-g btn-xs" style="margin-top:6px;width:100%" onclick="addTrocaItem('dev')">+ Item devolvido</button>
+        </div>
+        <div>
+          <div style="font-size:.6rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--gr);font-family:monospace;margin-bottom:6px">↪ Cliente Leva</div>
+          <div id="v-troca-env-list"></div>
+          <button class="btn btn-g btn-xs" style="margin-top:6px;width:100%" onclick="addTrocaItem('env')">+ Item enviado</button>
+        </div>
+      </div>
+      <div class="fg"><label>Diferença de Valor (R$) — positivo: cliente paga; negativo: loja devolve</label><input type="number" id="v-troca-diff" step="0.01" value="0" oninput="calcTot()"></div>
+    </div>
     <div class="form-row"><div class="fg"><label>Desconto (R$)</label><input type="number" id="v-desc" placeholder="0,00" step="0.01" value="0" oninput="calcTot()"></div><div class="fg"><label>Forma de Pagamento</label><select id="v-pag"><option>Dinheiro</option><option>Pix</option><option>Cartão de Crédito</option><option>Cartão de Débito</option><option>Venda a Prazo</option><option>Transferência</option></select></div></div>
     <div class="fg"><label>Total da Venda (R$) — editável para negociações</label>
   <div style="display:flex;gap:8px;align-items:center">
@@ -1130,6 +1144,7 @@ function defState(){return{
   produtos:[],vendas:[],gastos:[],gastosFixos:[],clientes:[],reposicoes:[],log:[]
 };}
 let S=defState(),curUser='',curPage='dashboard',cartItems=[];
+let trocaItens={dev:[{prodId:'',qtd:1}],env:[{prodId:'',qtd:1}]};
 
 // ═══ HELPERS ═══
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
@@ -1429,12 +1444,13 @@ function initVendaMod(data){
   document.getElementById('evid').value='';
   document.getElementById('mvenda-t').textContent='Registrar Venda';
   cartItems=[{prodId:'',qtd:1,preco:0,canal:'varejo'}];
+  trocaItens={dev:[{prodId:'',qtd:1}],env:[{prodId:'',qtd:1}]};
   document.getElementById('v-tipo').value='venda';
   document.getElementById('v-desc').value='0';
   document.getElementById('v-obs').value='';
   document.getElementById('v-data').value=today();
   const csel=document.getElementById('v-cliente');
-  csel.innerHTML='<option value="">— Sem vínculo —</option>'+S.clientes.map(c=>'<option value="'+c.id+'">'+c.nome+'</option>').join('');
+  csel.innerHTML='<option value="">— Sem vínculo —</option>'+S.clientes.map(c=>'<option value="'+c.id+'">'+esc(c.nome)+'</option>').join('');
   if(data) fillVenda(data);
   else renderCart();
   onTipoV();
@@ -1445,13 +1461,44 @@ function onTipoV(){
   document.getElementById('v-cart-sec').classList.toggle('hidden',tipo==='avulsa'||tipo==='troca');
   document.getElementById('v-avulsa-sec').classList.toggle('hidden',tipo!=='avulsa');
   document.getElementById('v-troca-sec').classList.toggle('hidden',tipo!=='troca');
-  // Populate troca selects
-  if(tipo==='troca'){
-    const opts=S.produtos.map(p=>'<option value="'+p.id+'">'+p.nome+(p.tam?' ('+p.tam+')':'')+'</option>').join('');
-    document.getElementById('v-troca-dev').innerHTML=opts;
-    document.getElementById('v-troca-env').innerHTML=opts;
-  }
+  if(tipo==='troca') renderTrocaLists();
   calcTot();
+}
+
+function _mkTrocaOpts(selectedId){
+  return '<option value="">— Selecionar —</option>'+
+    S.produtos.map(p=>'<option value="'+p.id+'"'+(p.id===selectedId?' selected':'')+'>'+
+      esc(p.nome)+(p.tam?' ('+esc(p.tam)+')':'')+(p.qtd===0?' ⚠ sem estoque':p.qtd<=p.alerta?' ⚠ baixo':'')+
+    '</option>').join('');
+}
+
+function renderTrocaLists(){
+  ['dev','env'].forEach(side=>{
+    const label=side==='dev'?'Produto devolvido':'Produto enviado';
+    const el=document.getElementById('v-troca-'+side+'-list');
+    if(!el)return;
+    el.innerHTML=trocaItens[side].map((it,i)=>`
+      <div style="display:grid;grid-template-columns:1fr 60px 28px;gap:5px;margin-bottom:5px;align-items:end">
+        <div><label style="font-size:.58rem;color:var(--w3);font-family:monospace">${label}</label>
+          <select onchange="trocaItens['${side}'][${i}].prodId=parseInt(this.value)||0;renderTrocaLists();calcTot()">
+            ${_mkTrocaOpts(it.prodId)}
+          </select></div>
+        <div><label style="font-size:.58rem;color:var(--w3);font-family:monospace">Qtd</label>
+          <input type="number" min="1" value="${it.qtd}" style="width:100%" onchange="trocaItens['${side}'][${i}].qtd=Math.max(1,parseInt(this.value)||1);calcTot()"></div>
+        <button class="btn btn-d btn-xs" style="align-self:end;margin-bottom:1px" onclick="remTrocaItem('${side}',${i})" ${trocaItens[side].length===1?'disabled':''}>×</button>
+      </div>`).join('');
+  });
+}
+
+function addTrocaItem(side){
+  trocaItens[side].push({prodId:'',qtd:1});
+  renderTrocaLists();
+}
+
+function remTrocaItem(side,i){
+  if(trocaItens[side].length===1)return;
+  trocaItens[side].splice(i,1);
+  renderTrocaLists();
 }
 
 function renderCart(){
@@ -1536,9 +1583,19 @@ function fillVenda(v){
   document.getElementById('v-desc').value=v.desconto||0;
   document.getElementById('v-obs').value=v.obs||'';
   document.getElementById('v-data').value=v.data;
-  if(v.carrinho&&v.carrinho.length) cartItems=[...v.carrinho];
-  else cartItems=[{prodId:'',qtd:1,preco:0,canal:'varejo'}];
-  renderCart();
+  if(v.tipo==='troca'&&v.carrinho){
+    // Restaura trocaItens a partir do carrinho salvo
+    trocaItens.dev=v.carrinho.filter(it=>it.trocaTipo==='dev').map(it=>({prodId:it.prodId,qtd:it.qtd||1}));
+    trocaItens.env=v.carrinho.filter(it=>it.trocaTipo==='env').map(it=>({prodId:it.prodId,qtd:it.qtd||1}));
+    if(!trocaItens.dev.length) trocaItens.dev=[{prodId:'',qtd:1}];
+    if(!trocaItens.env.length) trocaItens.env=[{prodId:'',qtd:1}];
+    const diffEl=document.getElementById('v-troca-diff');
+    if(diffEl) diffEl.value=v.total||0;
+  } else {
+    if(v.carrinho&&v.carrinho.length) cartItems=[...v.carrinho];
+    else cartItems=[{prodId:'',qtd:1,preco:0,canal:'varejo'}];
+    renderCart();
+  }
   setTimeout(()=>{ document.getElementById('v-pag').value=v.pag||'Dinheiro'; document.getElementById('v-cliente').value=v.clienteId||''; onTipoV(); },60);
 }
 
@@ -1560,19 +1617,25 @@ function salvarVenda(){
     total=totalOverride!=null&&totalOverride>0?totalOverride:Math.max(0,val-desc);
 
   } else if(tipo==='troca'){
-    const devId=parseInt(document.getElementById('v-troca-dev').value)||0;
-    const envId=parseInt(document.getElementById('v-troca-env').value)||0;
     const diff=parseFloat(document.getElementById('v-troca-diff').value||0);
+    // Valida que todos os itens têm produto selecionado
+    const allSelected=[...trocaItens.dev,...trocaItens.env].every(it=>it.prodId);
+    if(!allSelected){toast('Selecione todos os produtos da troca','var(--re)');return;}
     if(!eid){
-      const dp=S.produtos.find(x=>x.id===devId);
-      const ep=S.produtos.find(x=>x.id===envId);
-      if(ep&&ep.qtd<=0){toast('Estoque insuficiente para o produto de troca','var(--re)');return;}
-      if(dp) dp.qtd++;
-      if(ep) ep.qtd--;
+      // Verifica estoque nos enviados
+      for(const it of trocaItens.env){
+        const p=S.produtos.find(x=>x.id===it.prodId);
+        if(p&&p.qtd<it.qtd){toast('Estoque insuficiente: '+esc(p.nome),'var(--re)');return;}
+      }
+      // Devolve estoque dos devolvidos
+      trocaItens.dev.forEach(it=>{const p=S.produtos.find(x=>x.id===it.prodId);if(p)p.qtd+=it.qtd;});
+      // Abate estoque dos enviados
+      trocaItens.env.forEach(it=>{const p=S.produtos.find(x=>x.id===it.prodId);if(p)p.qtd-=it.qtd;});
     }
-    const dpNome=S.produtos.find(x=>x.id===devId)?.nome||'—';
-    const epNome=S.produtos.find(x=>x.id===envId)?.nome||'—';
-    items=[{prodId:devId,prodNome:dpNome,qtd:1,preco:0,canal:'troca',trocaTipo:'dev'},{prodId:envId,prodNome:epNome,qtd:1,preco:0,canal:'troca',trocaTipo:'env'}];
+    items=[
+      ...trocaItens.dev.map(it=>({prodId:it.prodId,prodNome:S.produtos.find(x=>x.id===it.prodId)?.nome||'—',qtd:it.qtd,preco:0,canal:'troca',trocaTipo:'dev'})),
+      ...trocaItens.env.map(it=>({prodId:it.prodId,prodNome:S.produtos.find(x=>x.id===it.prodId)?.nome||'—',qtd:it.qtd,preco:0,canal:'troca',trocaTipo:'env'}))
+    ];
     total=totalOverride!=null?totalOverride:Math.max(0,diff-desc);
     canal='troca';
 
@@ -1627,7 +1690,14 @@ function salvarVenda(){
 
 function delVenda(id){
   const v=S.vendas.find(x=>x.id===id);
-  confirmDel('Excluir esta venda? O estoque será restaurado.',()=>{logEvt('venda','del','Venda excluída: '+fmt(v?.total||0),fmtD(v?.data||''));    if(v?.carrinho&&v.tipo!=='avulsa'&&v.tipo!=='troca'&&v.tipo!=='devolucao'){
+  confirmDel('Excluir esta venda? O estoque será restaurado.',()=>{logEvt('venda','del','Venda excluída: '+fmt(v?.total||0),fmtD(v?.data||''));
+    if(v?.carrinho&&v.tipo==='troca'){
+      // Inverte a troca: devolve o que foi enviado, retira o que foi devolvido
+      v.carrinho.forEach(it=>{
+        const p=S.produtos.find(x=>x.id===it.prodId);
+        if(p) p.qtd+=(it.trocaTipo==='env'?it.qtd:-(it.qtd));
+      });
+    } else if(v?.carrinho&&v.tipo!=='avulsa'&&v.tipo!=='devolucao'){
       v.carrinho.forEach(it=>{const p=S.produtos.find(x=>x.id===it.prodId);if(p) p.qtd+=it.qtd;});
     }
     S.vendas=S.vendas.filter(x=>x.id!==id);
