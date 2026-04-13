@@ -705,6 +705,19 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--w);min-heigh
     <div class="card"><div class="card-title">Logo da Empresa</div><div class="logo-zone" onclick="document.getElementById('logo-file').click()"><input type="file" id="logo-file" accept="image/*" style="display:none" onchange="uploadLogo(event)"><img class="logo-prev" id="logo-prev" src="" alt=""><div style="font-size:.75rem;color:var(--s3)">Clique para carregar a logo</div><div style="font-size:.62rem;color:var(--s3);margin-top:4px;font-family:monospace">PNG, JPG, SVG · Fundo transparente ideal</div></div><button class="btn btn-d btn-sm" style="margin-top:10px" onclick="removeLogo()">Remover Logo</button></div>
     <div class="card"><div class="card-title">Meta Mensal de Vendas</div><div class="fg"><label>Meta de Receita (R$)</label><input type="number" id="cfg-meta" placeholder="Ex: 5000" step="100"></div><button class="btn btn-p btn-sm" onclick="saveMeta()">Salvar Meta</button><div class="divider"></div><div class="card-title">Pró-labore Mensal</div><div class="form-row"><div class="fg"><label>Titular (R$)</label><input type="number" id="cfg-pro1" placeholder="0,00" step="50"></div><div class="fg"><label>Sócia (R$)</label><input type="number" id="cfg-pro2" placeholder="0,00" step="50"></div></div><button class="btn btn-p btn-sm" onclick="saveProL()">Salvar Pró-labore</button></div>
     <div class="card">
+  <div class="card-title">Exibição de Tabelas</div>
+  <div class="fg"><label>Itens por página</label>
+    <select id="cfg-perpage">
+      <option value="10">10 itens</option>
+      <option value="20">20 itens</option>
+      <option value="50">50 itens</option>
+      <option value="100">100 itens</option>
+    </select>
+  </div>
+  <div style="font-size:.65rem;color:var(--s3);font-family:monospace;margin-bottom:10px">Aplica em estoque, vendas, gastos, clientes e histórico.</div>
+  <button class="btn btn-p btn-sm" onclick="savePerPage()">Salvar</button>
+</div>
+    <div class="card">
   <div class="card-title">Usuários do Sistema</div>
   <div class="form-row"><div class="fg"><label>Nome de exibição — admin</label><input type="text" id="cfg-n1" placeholder="Ex: Bruna, Titular..."></div><div class="fg"><label>Nome de exibição — socia</label><input type="text" id="cfg-n2" placeholder="Ex: Carol, Sócia..."></div></div>
   <div class="form-row"><div class="fg"><label>Nova Senha — admin</label><input type="password" id="cfg-p1" placeholder="Deixe em branco para manter"></div><div class="fg"><label>Nova Senha — socia</label><input type="password" id="cfg-p2" placeholder="Deixe em branco para manter"></div></div>
@@ -1135,7 +1148,7 @@ window.addEventListener('offline', ()=>{
 
 // ═══ DEFAULT STATE ═══
 function defState(){return{
-  logo:null,meta:0,
+  logo:null,meta:0,perPage:20,
   proLabore:{titular:0,socia:0},
   cats:{
     produto:['Vestidos','Blusas','Calças','Saias','Acessórios','Calçados','Macacões','Casacos','Conjuntos','Outros'],
@@ -1304,7 +1317,7 @@ function confirmDel(msg,cb){
 // ═══ TABS ═══
 const tSt={fin:'mes',v:'semana',g:'mes',r:'semana',cli:'todos'};
 const pagSt={est:1,v:1,g:1,cli:1,fiad:1,repo:1};
-const PER_PAGE=20; // itens por página (fixo)
+function PER_PAGE(){return parseInt(S.perPage)||20;}
 function setTab(ns,val,el){
   tSt[ns]=val;
   document.querySelectorAll(`#${ns}-tabs .tab`).forEach(t=>t.classList.remove('active'));
@@ -1403,7 +1416,7 @@ function renderEst(){
   const wrap=document.getElementById('est-tbl-wrap');
   const tb=document.getElementById('est-body');
   if(!ps.length){if(tb)tb.innerHTML='<tr><td colspan="11" class="tbl-empty">Nenhum produto'+(q?' encontrado':' cadastrado')+'</td></tr>';if(wrap)wrap.insertAdjacentHTML('afterbegin','');return;}
-  const slice=ps.slice((pg-1)*PER_PAGE, pg*PER_PAGE);
+  const slice=ps.slice((pg-1)*PER_PAGE(), pg*PER_PAGE());
   if(tb) tb.innerHTML=slice.map(p=>{
     const st=p.qtd===0?'r':p.qtd<=p.alerta?'a':'g';
     const stl={r:'Sem Estoque',a:'Baixo',g:'OK'}[st];
@@ -1783,7 +1796,7 @@ function renderVendas(){
     if(wrap)clearPagBulk(wrap);
     return;
   }
-  const slice=allSorted.slice((pg-1)*PER_PAGE, pg*PER_PAGE);
+  const slice=allSorted.slice((pg-1)*PER_PAGE(), pg*PER_PAGE());
   let lastMesV='';
   if(tb) tb.innerHTML=slice.map(v=>{
     const mesV=v.data?v.data.slice(0,7):'';
@@ -1853,7 +1866,7 @@ function renderGastos(){
   const wrap=document.getElementById('g-tbl-wrap');
   const tb=document.getElementById('g-body');
   if(!gs.length){if(tb)tb.innerHTML='<tr><td colspan="8" class="tbl-empty">Nenhum gasto neste período</td></tr>';if(wrap)clearPagBulk(wrap);return;}
-  const slice=gs.slice((pg-1)*PER_PAGE, pg*PER_PAGE);
+  const slice=gs.slice((pg-1)*PER_PAGE(), pg*PER_PAGE());
   let lastMes='';
   if(tb) tb.innerHTML=slice.map(g=>{
     const mesG=g.data?g.data.slice(0,7):'';
@@ -2003,7 +2016,7 @@ function renderCli(){
   const wrap=document.getElementById('cli-tbl-wrap');
   const tb=document.getElementById('cli-body');
   if(!cls.length){if(tb)tb.innerHTML='<tr><td colspan="9" class="tbl-empty">Nenhum cliente encontrado</td></tr>';if(wrap)clearPagBulk(wrap);return;}
-  const slice=cls.slice((pg-1)*PER_PAGE, pg*PER_PAGE);
+  const slice=cls.slice((pg-1)*PER_PAGE(), pg*PER_PAGE());
   if(tb) tb.innerHTML=slice.map(cli=>{
     const cl=cliClass(cli); const clc=cl==='VIP'?'bdg-p':cl==='Frequente'?'bdg-g':'bdg-w';
     const fiad=cliFiado(cli);
@@ -2177,7 +2190,7 @@ function renderRepo(){
     return;
   }
 
-  const slice=hist.slice((pg-1)*PER_PAGE, pg*PER_PAGE);
+  const slice=hist.slice((pg-1)*PER_PAGE(), pg*PER_PAGE());
   let lastMes='';
   const rows=slice.map(r=>{
     const mesR=r.data?r.data.slice(0,7):'';
@@ -3004,10 +3017,21 @@ async function saveSenhas(){
   document.getElementById('cfg-p1').value=''; document.getElementById('cfg-p2').value='';
   document.getElementById('sb-role').textContent=S.nomes?.[curUser]||(curUser==='admin'?'Titular':'Sócia');
 }
+function savePerPage(){
+  const v=parseInt(document.getElementById('cfg-perpage').value)||20;
+  S.perPage=v;
+  // Reset todas as páginas para 1 ao mudar o tamanho
+  Object.keys(pagSt).forEach(k=>pagSt[k]=1);
+  saveSt();
+  renderPage(curPage);
+  toast('✓ '+v+' itens por página');
+}
 function renderCfg(){
   document.getElementById('cfg-meta').value=S.meta||'';
   document.getElementById('cfg-pro1').value=S.proLabore?.titular||'';
   document.getElementById('cfg-pro2').value=S.proLabore?.socia||'';
+  const pp=document.getElementById('cfg-perpage');
+  if(pp) pp.value=S.perPage||20;
   const n1=document.getElementById('cfg-n1'),n2=document.getElementById('cfg-n2');
   if(n1)n1.value=S.nomes?.admin||''; if(n2)n2.value=S.nomes?.socia||'';
   applyLogo();
@@ -3760,9 +3784,10 @@ function impExecutar() {
 
 // ═══ PAGINAÇÃO + BULK SELECT ═══
 function mkPag(key, total, page, onNav){
-  const pages=Math.ceil(total/PER_PAGE)||1;
-  if(pages<=1&&total<=PER_PAGE) return '';
-  const start=(page-1)*PER_PAGE+1, end=Math.min(page*PER_PAGE,total);
+  const pp=PER_PAGE();
+  const pages=Math.ceil(total/pp)||1;
+  if(pages<=1&&total<=pp) return '';
+  const start=(page-1)*pp+1, end=Math.min(page*pp,total);
   let btns='';
   btns+=`<button class="pag-btn" onclick="${onNav}(${page-1})" ${page<=1?'disabled':''}>‹</button>`;
   const range=[];
