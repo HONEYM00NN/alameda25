@@ -1472,7 +1472,7 @@ function initProdMod(data){
     document.getElementById('p-nome').value=data.nome||'';document.getElementById('p-sku').value=data.sku||'';
     document.getElementById('p-cor').value=data.cor||'';document.getElementById('p-tam').value=data.tam||'';
     document.getElementById('p-custo').value=data.custo||'';document.getElementById('p-varejo').value=data.varejo||'';
-    document.getElementById('p-atacado').value=data.atacado||'';document.getElementById('p-qtd').value=data.qtd||'';
+    document.getElementById('p-atacado').value=data.atacado||'';document.getElementById('p-qtd').value=data.qtd??'';
     document.getElementById('p-alerta').value=data.alerta||'';document.getElementById('p-minata').value=data.minAta||'';
     document.getElementById('p-obs').value=data.obs||'';
     setTimeout(()=>{document.getElementById('p-cat').value=data.cat;calcMg();},50);
@@ -1592,7 +1592,7 @@ function renderTrocaLists(){
             ${_mkTrocaOpts(it.prodId)}
           </select></div>
         <div><label style="font-size:.58rem;color:var(--w3);font-family:monospace">Qtd</label>
-          <input type="number" min="1" value="${it.qtd}" style="width:100%" onchange="trocaItens['${side}'][${i}].qtd=Math.max(1,parseInt(this.value)||1);calcTot()"></div>
+          <input type="number" min="0" value="${it.qtd}" style="width:100%" onchange="trocaItens['${side}'][${i}].qtd=Math.max(0,parseInt(this.value)||0);calcTot()"></div>
         <button class="btn btn-d btn-xs" style="align-self:end;margin-bottom:1px" onclick="remTrocaItem('${side}',${i})" ${trocaItens[side].length===1?'disabled':''}>×</button>
       </div>`).join('');
   });
@@ -1675,7 +1675,7 @@ function renderCart(){
           '<option value="atacado"'+(it.canal==='atacado'?' selected':'')+'>Atacado</option>'+
         '</select>'+
       '</div>'+
-      '<div><label>Qtd</label><input type="number" min="1" value="'+it.qtd+'" onchange="cartItems['+i+'].qtd=Math.max(1,parseInt(this.value)||1);calcTot()"></div>'+
+      '<div><label>Qtd</label><input type="number" min="0" value="'+it.qtd+'" onchange="cartItems['+i+'].qtd=Math.max(0,parseInt(this.value)||0);calcTot()"></div>'+
       '<div><label>Preço Unit. (R$)</label><input type="number" step="0.01" value="'+it.preco.toFixed(2)+'" onchange="cartItems['+i+'].preco=parseFloat(this.value)||0;calcTot()"></div>'+
       '<button class="btn btn-d btn-xs" style="margin-top:18px;align-self:end" onclick="remCartItem('+i+')" '+(cartItems.length===1?'disabled':'')+'>×</button>'+
     '</div>';
@@ -1801,7 +1801,7 @@ function salvarVenda(){
     // Venda normal / fiado / atacado
     for(const it of cartItems){
       if(!it.prodId){toast('Selecione todos os produtos no carrinho','var(--re)');return;}
-      if(!it.preco||it.preco<=0){toast('Informe o preço de todos os itens','var(--re)');return;}
+      // Preço 0 é permitido (brinde, cortesia) — apenas avisa se parecer erro
       const p=S.produtos.find(x=>x.id===it.prodId);
       if(!eid){
         if(p&&it.qtd>p.qtd){toast('Estoque insuficiente: '+p.nome+' (disponível: '+p.qtd+')','var(--re)');return;}
